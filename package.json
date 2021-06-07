@@ -40,8 +40,9 @@
     "whatwg-fetch": "^3.4.1"
   },
   "scripts": {
-    "dev:build-server": "NODE_ENV=development webpack --config webpack-configs/server.js --mode=development -w",
-    "dev:start": "nodemon ./server-build/index.js",
-    "start": "npm-run-all --parallel dev:*"
+    "dev:build-server": "rm -rf build NODE_ENV=development webpack --config webpack-configs/server.js --mode=development -w",
+    "dev:start": "nodemon ./build/index.js",
+    "start": "npm-run-all --parallel dev:*",
+    "build": "rm -rf build && NODE_ENV=production webpack --config webpack-configs/server.js"
   }
 }

@@ -5,11 +5,12 @@ const path = require('path');
 const nodeExternals = require('webpack-node-externals');
 
 module.exports = {
-  entry: './src/index.js',
+  entry: './src/createImage/index.js',
 
   target: 'node',
 
   externals: [nodeExternals()],
+
 
   resolve: {
     modules: [
@@ -21,8 +22,12 @@ module.exports = {
   },
 
   output: {
-    path: path.resolve('server-build'),
+    path: path.resolve('build'),
     filename: 'index.js',
+    library: {
+      name: 'createImage',
+      type: 'umd',
+    },
   },
 
   module: {

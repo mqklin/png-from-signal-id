@@ -1,5 +1,6 @@
-import fs from 'fs'; // eslint-disable-line import/no-nodejs-modules
-import createImage from './createImage';
+const fs = require('fs'); // eslint-disable-line import/no-nodejs-modules
+const path = require('path'); // eslint-disable-line import/no-nodejs-modules
+const {createImage} = require(path.resolve('build', 'index.js'));
 
 const forecast = {
   closeType: 'by_issuer',

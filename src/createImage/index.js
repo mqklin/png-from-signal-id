@@ -10,7 +10,7 @@ import fs from 'fs';
 import path from 'path';
 
 
-export default function render({forecast, signalsContractAddress, imagePath}) {
+export function createImage({forecast, signalsContractAddress, imagePath}) {
   const [
     lightweightChartSource,
     requestAnimationFrameSource,
@@ -265,5 +265,4 @@ export default function render({forecast, signalsContractAddress, imagePath}) {
       console.error(e); // eslint-disable-line no-console
     }
   })();
-
 }
