@@ -1,6 +1,7 @@
 /* eslint-disable import/no-nodejs-modules */
 
 import ReactDOMServer from 'react-dom/server';
+
 const nodeHtmlToImage = require('node-html-to-image');
 import {ServerStyleSheet} from 'styled-components';
 import jsdom from 'jsdom';
@@ -10,53 +11,51 @@ import fs from 'fs';
 import path from 'path';
 
 
-export function createImage({forecast, signalsContractAddress, imagePath}) {
-  const [
-    lightweightChartSource,
-    requestAnimationFrameSource,
-    matchMediaSource,
-  ] = [
-    fs.readFileSync(path.resolve('src/createImage/shims/lightweight-charts.standalone.js'), 'utf8'),
-    fs.readFileSync(path.resolve('src/createImage/shims/requestAnimationFrame.js'), 'utf8'),
-    fs.readFileSync(path.resolve('src/createImage/shims/matchMedia.js'), 'utf8'),
-  ];
+export async function createImage({forecast, signalsContractAddress, imagePath}) {
+    const [
+        lightweightChartSource,
+        requestAnimationFrameSource,
+        matchMediaSource,
+    ] = [
+        fs.readFileSync(path.resolve('createImage/shims/lightweight-charts.standalone.js'), 'utf8'),
+        fs.readFileSync(path.resolve('createImage/shims/requestAnimationFrame.js'), 'utf8'),
+        fs.readFileSync(path.resolve('createImage/shims/matchMedia.js'), 'utf8'),
+    ];
 
 
-  const {JSDOM} = jsdom;
+    const {JSDOM} = jsdom;
 
 
-  (async () => {
-    try {
-      const contentWidth = 1800;
-      const contentMargin = 16;
-      const bodyWidth = contentWidth + contentMargin * 2;
-      const chartHeight = 640;
+    const contentWidth = 1800;
+    const contentMargin = 16;
+    const bodyWidth = contentWidth + contentMargin * 2;
+    const chartHeight = 640;
 
-      const chartData = await getChartData(forecast, timeframe_15_min);
-      const sheet = new ServerStyleSheet();
-      let html = ReactDOMServer.renderToStaticMarkup(sheet.collectStyles(
+    const chartData = await getChartData(forecast, timeframe_15_min);
+    const sheet = new ServerStyleSheet();
+    let html = ReactDOMServer.renderToStaticMarkup(sheet.collectStyles(
         <App
-          contentMargin={contentMargin}
-          contentWidth={contentWidth}
-          forecast={forecast}
-          signalsContractAddress={signalsContractAddress}
+            contentMargin={contentMargin}
+            contentWidth={contentWidth}
+            forecast={forecast}
+            signalsContractAddress={signalsContractAddress}
         />,
-      ));
-      const styleTags = sheet.getStyleTags();
+    ));
+    const styleTags = sheet.getStyleTags();
 
 
-      html = html
+    html = html
         .replace(
-          '<html>',
-          '<!DOCTYPE html><html>',
+            '<html>',
+            '<!DOCTYPE html><html>',
         )
         .replace(
-          '<body>',
-          `<body>${styleTags}`,
+            '<body>',
+            `<body>${styleTags}`,
         )
         .replace(
-          '<body>',
-          `<body><style>
+            '<body>',
+            `<body><style>
               body {
                 width: ${bodyWidth}px;
                 height: ${chartHeight + 180}px;
@@ -64,8 +63,8 @@ export function createImage({forecast, signalsContractAddress, imagePath}) {
             </style>`,
         )
         .replace(
-          '</body>',
-          `
+            '</body>',
+            `
             <script>
               ${lightweightChartSource}
               ${requestAnimationFrameSource}
@@ -251,18 +250,12 @@ export function createImage({forecast, signalsContractAddress, imagePath}) {
             </script>
             </body>
           `,
-        )
-      ;
+        );
 
-      const dom = new JSDOM(html, {runScripts: 'dangerously'});
+    const dom = new JSDOM(html, {runScripts: 'dangerously'});
 
-      nodeHtmlToImage({
+    return nodeHtmlToImage({
         output: imagePath,
         html: dom.window.document.documentElement.innerHTML,
-      }).then(() => console.log('The image was created successfully!')); // eslint-disable-line no-console
-    }
-    catch (e) {
-      console.error(e); // eslint-disable-line no-console
-    }
-  })();
+    })
 }
