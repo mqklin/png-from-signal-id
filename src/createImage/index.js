@@ -10,7 +10,7 @@ import fs from 'fs';
 import path from 'path';
 
 
-export function createImage({forecast, signalsContractAddress, imagePath}) {
+export function createImage({forecast, imagePath}) {
   const [
     lightweightChartSource,
     requestAnimationFrameSource,
@@ -27,10 +27,13 @@ export function createImage({forecast, signalsContractAddress, imagePath}) {
 
   (async () => {
     try {
-      const contentWidth = 1800;
+      const imageWidth = 721;
+      const imageHeight = 376;
+      const K = 2;
+      const contentWidth = imageWidth * K;
       const contentMargin = 16;
       const bodyWidth = contentWidth + contentMargin * 2;
-      const chartHeight = 640;
+      const chartHeight = imageHeight * K;
 
       const chartData = await getChartData(forecast, timeframe_15_min);
       const sheet = new ServerStyleSheet();
@@ -38,8 +41,6 @@ export function createImage({forecast, signalsContractAddress, imagePath}) {
         <App
           contentMargin={contentMargin}
           contentWidth={contentWidth}
-          forecast={forecast}
-          signalsContractAddress={signalsContractAddress}
         />,
       ));
       const styleTags = sheet.getStyleTags();
@@ -59,7 +60,8 @@ export function createImage({forecast, signalsContractAddress, imagePath}) {
           `<body><style>
               body {
                 width: ${bodyWidth}px;
-                height: ${chartHeight + 180}px;
+                height: ${chartHeight}px;
+                border: 3px solid #DDDFE8;
               }
             </style>`,
         )
@@ -106,7 +108,7 @@ export function createImage({forecast, signalsContractAddress, imagePath}) {
               };
 
               const forecast = ${JSON.stringify(forecast)};
-              const {takeProfitPrice, stopLossPrice, direction, signalPerformance} = forecast;
+              const {direction, signalPerformance} = forecast;
               const {prices, signalOpenDateIndex, signalCloseDateIndex} = ${JSON.stringify(chartData)};;
               const minPriceLog10 = Math.log10(Math.min(...prices.map(p => p.value)));
               const precision = minPriceLog10 > 0 ? 2 : -Math.ceil(minPriceLog10) + 3;
@@ -124,11 +126,7 @@ export function createImage({forecast, signalsContractAddress, imagePath}) {
                     width: chartWidth,
                     height: chartHeight,
                     timeScale: {
-                      timeVisible: true,
-                      secondsVisible: false,
-                      drawTicks: false,
-                      borderColor: hashes['gray20'],
-                      rightOffset: 4,
+                      visible: false,
                     },
                     handleScale: false,
                     grid: {
@@ -143,7 +141,7 @@ export function createImage({forecast, signalsContractAddress, imagePath}) {
                       textColor: hashes['gray20'],
                     },
                     priceScale: {
-                      borderColor: hashes['gray20'],
+                      visible: false,
                     },
                   },
                 );
@@ -163,24 +161,7 @@ export function createImage({forecast, signalsContractAddress, imagePath}) {
                   color: hashes['gray20'],
                 });
                 series1.setData(prices.slice(0, startIndex + 1).map(p => ({time: getTimestamp(p.datetime), value: p.value})));
-                series1.setMarkers([{time: getTimestamp(prices[startIndex].datetime), position: position1, color: hashes['gray40'], shape: shape1, size: 2, text: text1}]);
-
-                if (takeProfitPrice !== null) {
-                  series1.createPriceLine({
-                    price: takeProfitPrice,
-                    color: hashes['primary'],
-                    lineStyle: 1,
-                  });
-                }
-
-                if (stopLossPrice !== null) {
-                  series1.createPriceLine({
-                    price: stopLossPrice,
-                    color: hashes['secondary'],
-                    lineStyle: 1,
-                  });
-                }
-
+                series1.setMarkers([{time: getTimestamp(prices[startIndex].datetime), position: position1, color: hashes['gray40'], shape: shape1, size: 4, text: text1}]);
 
                 if (endIndex === null) {
                   const series2 = chart.addLineSeries({
@@ -195,7 +176,7 @@ export function createImage({forecast, signalsContractAddress, imagePath}) {
                     color: hashes['gray20'],
                   });
                   series3.setData(prices.slice(endIndex).map(p => ({time: getTimestamp(p.datetime), value: p.value})));
-                  series3.setMarkers([{time: getTimestamp(prices[endIndex].datetime), position: position2, color: hashes['gray40'], shape: shape2, size: 2, text: text2}]);
+                  series3.setMarkers([{time: getTimestamp(prices[endIndex].datetime), position: position2, color: hashes['gray40'], shape: shape2, size: 4, text: text2}]);
                   const series2 = chart.addLineSeries({
                     ...seriesCommonOptions,
                     color: hashes[perf > 0 ? 'primary' : perf < 0 ? 'secondary' : 'gray20'],

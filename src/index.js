@@ -24,8 +24,6 @@ const forecast = {
   username: 'eth_bear-san_system_bot',
 };
 
-const signalsContractAddress = '0x94999E8062013f6D4284DB639f63c88B763824FA';
-
 const imagePath = 'image.png';
 try {
   fs.unlinkSync(imagePath);
@@ -34,6 +32,5 @@ catch {}
 
 createImage({
   forecast,
-  signalsContractAddress,
   imagePath,
 });
