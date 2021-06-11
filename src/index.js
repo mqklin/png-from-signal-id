@@ -1,6 +1,5 @@
 const fs = require('fs'); // eslint-disable-line import/no-nodejs-modules
-const path = require('path'); // eslint-disable-line import/no-nodejs-modules
-const {createImage} = require(path.resolve('build', 'index.js'));
+const {createImage} = require('../build/index.js');
 
 const forecast = {
   closeType: 'by_issuer',
@@ -33,4 +32,6 @@ catch {}
 createImage({
   forecast,
   imagePath,
-});
+}).then(
+  () => console.log('done'), // eslint-disable-line no-console
+);
