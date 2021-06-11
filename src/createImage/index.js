@@ -10,19 +10,17 @@ import getChartData, {timeframe_15_min} from 'App/utils/getChartData';
 import fs from 'fs';
 import path from 'path';
 
+const [
+    lightweightChartSource,
+    requestAnimationFrameSource,
+    matchMediaSource,
+] = [
+    fs.readFileSync(path.join(__dirname, './shims/lightweight-charts.standalone.js'), 'utf8'),
+    fs.readFileSync(path.join(__dirname, './shims/requestAnimationFrame.js'), 'utf8'),
+    fs.readFileSync(path.join(__dirname, './shims/matchMedia.js'), 'utf8'),
+];
 
 export async function createImage({forecast, signalsContractAddress, imagePath}) {
-    const [
-        lightweightChartSource,
-        requestAnimationFrameSource,
-        matchMediaSource,
-    ] = [
-        fs.readFileSync(path.resolve('createImage/shims/lightweight-charts.standalone.js'), 'utf8'),
-        fs.readFileSync(path.resolve('createImage/shims/requestAnimationFrame.js'), 'utf8'),
-        fs.readFileSync(path.resolve('createImage/shims/matchMedia.js'), 'utf8'),
-    ];
-
-
     const {JSDOM} = jsdom;
 
 
