@@ -15,9 +15,9 @@ const [
     requestAnimationFrameSource,
     matchMediaSource,
 ] = [
-    fs.readFileSync(path.join(__dirname, './shims/lightweight-charts.standalone.js'), 'utf8'),
-    fs.readFileSync(path.join(__dirname, './shims/requestAnimationFrame.js'), 'utf8'),
-    fs.readFileSync(path.join(__dirname, './shims/matchMedia.js'), 'utf8'),
+    fs.readFileSync(path.join(__dirname, '../src/shims/lightweight-charts.standalone.js'), 'utf8'),
+    fs.readFileSync(path.join(__dirname, '../src/shims/requestAnimationFrame.js'), 'utf8'),
+    fs.readFileSync(path.join(__dirname, '../src/shims/matchMedia.js'), 'utf8'),
 ];
 
 const {JSDOM} = jsdom;
