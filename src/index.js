@@ -32,6 +32,4 @@ catch {}
 createImage({
   forecast,
   imagePath,
-}).then(
-  () => console.log('done'), // eslint-disable-line no-console
-);
+}).then(() => console.log('done')) // eslint-disable-line no-console
