@@ -1,7 +1,7 @@
 import {memo} from 'react';
 import {number} from 'prop-types';
 import styled from 'styled-components';
-import {semibold, gray90} from 'App/DesignSystem';
+import {semibold, alt} from 'App/DesignSystem';
 import {forbidExtraProps} from 'airbnb-prop-types';
 
 
@@ -17,57 +17,58 @@ const Wr = styled.div`
 const ChartWr = styled.div`
 `;
 
-const Icon = styled.img`
-  position: absolute;
-  width: ${59 * 2}px;
-  height: ${59 * 2}px;
-  right: ${24 * 2}px;
-  top: ${28 * 2}px;
-  z-index: 1;
+const Banner = styled.div`
+  background: ${alt};
+  color: #fff;
+  letter-spacing: 0.4px;
+  display: flex;
+  align-items: center;
+  ${semibold}
+  font-family: Poppins, sans-serif;
+  width: 100%;
+  height: ${props => props.bannerHeight}px;
 `;
 
-const Text = styled.div`
-  top: ${28 * 2}px;
-  left: ${28 * 2}px;
-  position: absolute;
-  z-index: 1;
-  color: ${gray90};
-  letter-spacing: 0.4px;
+const Icon = styled.img`
+  width: ${26 * 2}px;
+  height: ${26 * 2}px;
+  margin-left: 32px;
 `;
 
 const Header = styled.div`
-  font-size: ${35 * 2}px;
-  font-family: Poppins, sans-serif;
-  ${semibold}
+  font-size: ${19 * 2}px;
+  margin-left: 24px;
 `;
 
 const Body = styled.div`
-  font-size: ${20 * 2}px;
-  font-family: Poppins, sans-serif;
-  ${semibold}
+  font-size: ${14 * 2}px;
+  margin-left: 24px;
+  margin-top: 4px;
 `;
 
 
 export default memo(ModalContent);
 
 ModalContent.propTypes = forbidExtraProps({
+  bannerHeight: number.isRequired,
   contentMargin: number.isRequired,
   contentWidth: number.isRequired,
 });
 
 function ModalContent({
+  bannerHeight,
   contentMargin,
   contentWidth,
 }) {
 
   return (
     <Wr contentMargin={contentMargin} contentWidth={contentWidth}>
-      <ChartWr id="chart-wr"/>
-      <Icon src={require('./icons/SAN.svg')}/>
-      <Text>
+      <Banner bannerHeight={bannerHeight}>
+        <Icon src={require('./icons/SAN.svg')}/>
         <Header>SanR</Header>
         <Body>Crypto price prediction marketplace</Body>
-      </Text>
+      </Banner>
+      <ChartWr id="chart-wr"/>
     </Wr>
   );
 }

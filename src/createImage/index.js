@@ -1,3 +1,4 @@
+/* globals __dirname */
 /* eslint-disable import/no-nodejs-modules */
 
 import ReactDOMServer from 'react-dom/server';
@@ -9,61 +10,64 @@ import App from 'App';
 import getChartData, {timeframe_15_min} from 'App/utils/getChartData';
 import fs from 'fs';
 import path from 'path';
+// import sharp from 'sharp';
 
 const [
-    lightweightChartSource,
-    requestAnimationFrameSource,
-    matchMediaSource,
+  lightweightChartSource,
+  requestAnimationFrameSource,
+  matchMediaSource,
 ] = [
-    fs.readFileSync(path.join(__dirname, '../src/shims/lightweight-charts.standalone.js'), 'utf8'),
-    fs.readFileSync(path.join(__dirname, '../src/shims/requestAnimationFrame.js'), 'utf8'),
-    fs.readFileSync(path.join(__dirname, '../src/shims/matchMedia.js'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, '../src/shims/lightweight-charts.standalone.js'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, '../src/shims/requestAnimationFrame.js'), 'utf8'),
+  fs.readFileSync(path.join(__dirname, '../src/shims/matchMedia.js'), 'utf8'),
 ];
 
 const {JSDOM} = jsdom;
 
-export async function createImage({forecast, signalsContractAddress, imagePath}) {
-    const imageWidth = 721;
-    const imageHeight = 376;
-    const K = 2;
-    const contentWidth = imageWidth * K;
-    const contentMargin = 16;
-    const bodyWidth = contentWidth + contentMargin * 2;
-    const chartHeight = imageHeight * K;
+export async function createImage({forecast, imagePath}) {
+  const imageWidth = 721;
+  const imageHeight = 376;
+  const K = 2;
+  const bannerHeight = 50;
+  const contentWidth = imageWidth * K;
+  const contentMargin = 0;
+  const bodyWidth = contentWidth + contentMargin * 2;
+  const chartHeight = (imageHeight - bannerHeight) * K;
 
-    const chartData = await getChartData(forecast, timeframe_15_min);
-    const sheet = new ServerStyleSheet();
-    let html = ReactDOMServer.renderToStaticMarkup(sheet.collectStyles(
-        <App
-            contentMargin={contentMargin}
-            contentWidth={contentWidth}
-        />,
-    ));
-    const styleTags = sheet.getStyleTags();
+  const chartData = await getChartData(forecast, timeframe_15_min);
+  const sheet = new ServerStyleSheet();
+  let html = ReactDOMServer.renderToStaticMarkup(sheet.collectStyles(
+    <App
+      bannerHeight={bannerHeight * K}
+      contentMargin={contentMargin}
+      contentWidth={contentWidth}
+    />,
+  ));
+  const styleTags = sheet.getStyleTags();
 
 
-    html = html
-        .replace(
-            '<html>',
-            '<!DOCTYPE html><html>'
-        )
-        .replace(
-            '<body>',
-            `<body>${styleTags}`
-        )
-        .replace(
-            '<body>',
-            `<body><style>
+  html = html
+    .replace(
+      '<html>',
+      '<!DOCTYPE html><html>',
+    )
+    .replace(
+      '<body>',
+      `<body>${styleTags}`,
+    )
+    .replace(
+      '<body>',
+      `<body><style>
               body {
                 width: ${bodyWidth}px;
-                height: ${chartHeight}px;
+                height: ${chartHeight + bannerHeight * K}px;
                 border: 3px solid #DDDFE8;
               }
-            </style>`
-        )
-        .replace(
-            '</body>',
-            `
+            </style>`,
+    )
+    .replace(
+      '</body>',
+      `
         <script>
           ${lightweightChartSource}
           ${requestAnimationFrameSource}
@@ -227,13 +231,22 @@ export async function createImage({forecast, signalsContractAddress, imagePath})
           });
         </script>
         </body>
-      `
-        );
+      `,
+    );
 
-    const dom = new JSDOM(html, {runScripts: 'dangerously'});
+  const dom = new JSDOM(html, {runScripts: 'dangerously'});
 
-    return nodeHtmlToImage({
-        output: imagePath,
-        html: dom.window.document.documentElement.innerHTML,
-    });
+  return nodeHtmlToImage({
+    output: imagePath,
+    html: dom.window.document.documentElement.innerHTML,
+  });
+  // .then(() => {
+  //   fs.readFile(imagePath, (err, data) => {
+  //     if (err) {
+  //       console.log(err);
+  //       return;
+  //     }
+  //     sharp(data).resize(740, 379).toFile(imagePath, (err, info) => console.log(err, info));
+  //   });
+  // });
 }

@@ -7,11 +7,13 @@ import ModalContent from './ModalContent';
 export default memo(App);
 
 App.propTypes = forbidExtraProps({
+  bannerHeight: number.isRequired,
   contentMargin: number.isRequired,
   contentWidth: number.isRequired,
 });
 
 function App({
+  bannerHeight,
   contentMargin,
   contentWidth,
 }) {
@@ -20,6 +22,7 @@ function App({
       <body>
         <DesignSystem/>
         <ModalContent
+          bannerHeight={bannerHeight}
           contentMargin={contentMargin}
           contentWidth={contentWidth}
         />
