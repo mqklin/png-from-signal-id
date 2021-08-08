@@ -239,6 +239,7 @@ export async function createImage({forecast, imagePath}) {
   return nodeHtmlToImage({
     output: imagePath,
     html: dom.window.document.documentElement.innerHTML,
+    puppeteerArgs: {args: ['--no-sandbox']},
   });
   // .then(() => {
   //   fs.readFile(imagePath, (err, data) => {
