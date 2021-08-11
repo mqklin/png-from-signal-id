@@ -2,25 +2,26 @@ const fs = require('fs'); // eslint-disable-line import/no-nodejs-modules
 const {createImage} = require('../build/index.js');
 
 const forecast = {
-  closeType: 'by_issuer',
+  closeType: 'user_closed_signal',
   direction: 'down',
-  id: '55233',
+  id: '56418',
+  image: 'uploads/generatedAutomatically/signalImages/56418_855_1628698987886.png',
   inCompetition: true,
-  issuerAddress: '0xF2038DC163D650700ccC08626CB7a1044Ad3fddB',
-  issuerId: '245',
-  maxPrice: 4144.69,
-  minPrice: 2425.88641009695,
-  signalCloseDate: '2021-05-10T07:52:33.176Z',
-  signalClosePrice: 4117.30744359526,
-  signalID: '123',
-  signalOpenDate: '2021-04-26T09:02:45.908Z',
-  signalOpenPrice: 2441.52511726322,
-  signalPerformance: -0.686367023006701,
-  status: 'closed',
+  issuerAddress: '0xd3207412bDA3d8B3F9D8a0Cb454318DCcaa7F0e5',
+  issuerId: '95',
+  maxPrice: 3252.26219731997,
+  minPrice: 3252,
+  signalCloseDate: null,
+  signalClosePrice: 3252,
+  signalID: '855',
+  signalOpenDate: '2021-08-11T16:22:51.863Z',
+  signalOpenPrice: 3252.26219731997,
+  signalPerformance: 0.0000806199820499911,
+  status: 'open',
   stopLossPrice: null,
   symbol: 'ETH/USD',
-  takeProfitPrice: 2172,
-  username: 'eth_bear-san_system_bot',
+  takeProfitPrice: null,
+  username: 'u_0xd32.7f0e5',
 };
 
 const imagePath = 'image.png';
@@ -32,4 +33,4 @@ catch {}
 createImage({
   forecast,
   imagePath,
-}).then(() => console.log('done')) // eslint-disable-line no-console
+}).then(() => console.log('done')); // eslint-disable-line no-console

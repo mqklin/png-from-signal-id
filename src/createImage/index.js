@@ -127,6 +127,7 @@ export async function createImage({forecast, imagePath}) {
                 height: chartHeight,
                 timeScale: {
                   visible: false,
+                  rightOffset: 40,
                 },
                 handleScale: false,
                 grid: {
