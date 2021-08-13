@@ -7,9 +7,12 @@ const nodeHtmlToImage = require('node-html-to-image');
 import {ServerStyleSheet} from 'styled-components';
 import jsdom from 'jsdom';
 import App from 'App';
-import getChartData, {timeframe_15_min} from 'App/utils/getChartData';
+import getChartData from 'App/utils/getChartData';
+import TOKENS, {LEND} from 'App/constants/TOKENS';
 import fs from 'fs';
+import fetch from 'node-fetch';
 import path from 'path';
+import moment from 'moment';
 // import sharp from 'sharp';
 
 const [
@@ -24,7 +27,61 @@ const [
 
 const {JSDOM} = jsdom;
 
-export async function createImage({forecast, imagePath}) {
+export async function getPrices(forecast) {
+  const {
+    symbol,
+    signalOpenDate,
+    signalCloseDate,
+  } = forecast;
+  const to = symbol
+    ? moment().diff(signalOpenDate, 'w') < 3 ? moment() : moment(signalOpenDate).add(moment(signalCloseDate).diff(signalOpenDate, 'seconds') / 2, 'seconds').add(2, 'w')
+    : moment()
+    ;
+  const from = moment(to).subtract(4, 'w');
+  const token = TOKENS.find(token => token.symbol === symbol);
+  const {slug, metric, id} = token;
+
+
+  return fetch('https://api.santiment.net/graphql', {
+    method: 'POST',
+    body: `
+      {
+        getMetric(metric:"${metric}") {
+          timeseriesData(
+            slug:"${slug}",
+            from:"${from.toISOString()}",
+            to:"${to.toISOString()}",
+            interval: "15m",
+          ) {
+            value
+            datetime
+          }
+        }
+      }
+    `,
+  })
+    .then(response => response.json())
+    .then(({data, errors}) => {
+      if (errors) {
+        throw new Error(JSON.stringify(errors));
+      }
+      if (id === LEND) {
+        data.getMetric.timeseriesData = data.getMetric.timeseriesData.map(({datetime, value}) => {
+          const momentDatetime = moment(datetime);
+          if (momentDatetime.isAfter('2020-10-19T13:00:00Z') && momentDatetime.isBefore('2020-10-19T16:00:00Z') && value > 0.001 || momentDatetime.isSameOrAfter('2020-10-19T16:00:00Z')) {
+            value /= 100;
+          }
+          return {datetime, value};
+        });
+      }
+      return data.getMetric.timeseriesData;
+    })
+    .catch(e => {
+      throw e;
+    });
+}
+
+export async function createImage({forecast, imagePath, prices}) {
   const imageWidth = 721;
   const imageHeight = 376;
   const K = 2;
@@ -34,7 +91,7 @@ export async function createImage({forecast, imagePath}) {
   const bodyWidth = contentWidth + contentMargin * 2;
   const chartHeight = (imageHeight - bannerHeight) * K;
 
-  const chartData = await getChartData(forecast, timeframe_15_min);
+  const chartData = await getChartData(forecast, prices);
   const sheet = new ServerStyleSheet();
   let html = ReactDOMServer.renderToStaticMarkup(sheet.collectStyles(
     <App

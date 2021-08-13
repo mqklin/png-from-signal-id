@@ -9,7 +9,6 @@ module.exports = {
     process: 'readonly',
 
     // browser env
-    fetch: 'readonly',
     Promise: 'readonly',
     localStorage: 'readonly',
     document: 'readonly',
