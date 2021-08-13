@@ -75,9 +75,6 @@ export async function getPrices(forecast) {
         });
       }
       return data.getMetric.timeseriesData;
-    })
-    .catch(e => {
-      throw e;
     });
 }
 
