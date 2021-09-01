@@ -52,6 +52,7 @@ export async function getPrices(forecast) {
             from:"${from.toISOString()}",
             to:"${to.toISOString()}",
             interval: "15m",
+            selector: {source: "cryptocompare"},
           ) {
             value
             datetime
