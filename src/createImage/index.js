@@ -8,6 +8,7 @@ const dragon = '#65B67D';
 const phoenix = '#E4645B';
 const gray70 = '#1E2028';
 const gray40 = '#464A5C';
+const gray25 = '#E9EAF0';
 
 exports.createImage = async ({forecast, signalsContractAddress, imagePath}) => {
   const width = 1200;
@@ -70,6 +71,8 @@ exports.createImage = async ({forecast, signalsContractAddress, imagePath}) => {
   const svg = `
     <svg width="${width}" height="${height}" preserveAspectRatio="none" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <rect width="100%" height="100%" fill="white"/>
+      ${Array(15).fill().map((_, idx) => `<line stroke-dasharray="4 8" shape-rendering="crispEdges" stroke="${gray25}" stroke-width="1" x1="${idx * width / 15 + 50}" x2="${idx * width / 15 + 50}" y1="0" y2="${height}"/>`)}
+      ${Array(20).fill().map((_, idx) => `<line stroke-dasharray="4 8" shape-rendering="crispEdges" stroke="${gray25}" stroke-width="1" x1="0" x2="${width}" y1="${idx * height / 20 + 10}" y2="${idx * height / 20 + 10}"/>`)}
       <polyline
         fill="none"
         points="${marginPoints.map(([x, y]) => `${x},${y}`).join(' ')}"
