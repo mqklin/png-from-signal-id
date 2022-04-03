@@ -1,6 +1,5 @@
 import moment from 'moment';
-import TOKENS, {LEND} from 'App/constants/TOKENS';
-import {captureException} from 'App/utils';
+import TOKENS from './TOKENS';
 import fetch from 'node-fetch';
 
 
@@ -14,6 +13,7 @@ function fetchSanApi(body) {
 
 export const timeframe_15_min = 'timeframe_15_min';
 export const timeframe_4_h = 'timeframe_4_h';
+export const timeframe_2_h = 'timeframe_2_h';
 
 
 function getTimestamp(time) {
@@ -29,23 +29,22 @@ export default async function getChartData(forecast, timeframe = timeframe_4_h) 
     case timeframe_15_min:
       interval = '15m';
       break;
+    case timeframe_2_h:
+      interval = '2h';
+      break;
     default:
       throw new Error(`Invalid timeframe ${timeframe}`);
   }
   try {
     const {
       symbol,
-      signalOpenDate,
-      signalCloseDate,
-      signalOpenPrice,
-      signalClosePrice,
-      competitionStartDate,
-      competitionEndDate,
-      competitionStartPrice,
-      competitionEndPrice,
+      openDate,
+      closeDate,
+      openPrice,
+      closePrice,
     } = forecast;
     const to = symbol
-      ? moment().diff(signalOpenDate, 'w') < 3 ? moment() : moment(signalOpenDate).add(moment(signalCloseDate).diff(signalOpenDate, 'seconds') / 2, 'seconds').add(2, 'w')
+      ? moment().diff(openDate, 'w') < 3 ? moment() : moment(openDate).add(moment(closeDate).diff(openDate, 'seconds') / 2, 'seconds').add(2, 'w')
       : moment()
     ;
     const prices = await getPrices({
@@ -54,14 +53,14 @@ export default async function getChartData(forecast, timeframe = timeframe_4_h) 
       to,
       interval,
     });
-    const signalOpenDateTimestamp = getTimestamp(signalOpenDate);
+    const signalOpenDateTimestamp = getTimestamp(openDate);
     let signalOpenDateIndex;
     if (signalOpenDateTimestamp > getTimestamp(prices.slice(-1)[0].datetime)) {
       signalOpenDateIndex = prices.length;
-      prices.push({datetime: moment(signalOpenDate).utc().format(), value: signalOpenPrice});
+      prices.push({datetime: moment(openDate).utc().format(), value: openPrice});
     }
     else {
-      const signalOpenDateISO = moment(signalOpenDate).utc().format();
+      const signalOpenDateISO = moment(openDate).utc().format();
       for (let i = 0; i < prices.length - 1; i++) {
         if (prices[i].datetime === signalOpenDateISO) {
           signalOpenDateIndex = i;
@@ -69,78 +68,39 @@ export default async function getChartData(forecast, timeframe = timeframe_4_h) 
         }
         if (signalOpenDateTimestamp > getTimestamp(prices[i].datetime) && signalOpenDateTimestamp < getTimestamp(prices[i + 1].datetime)) {
           signalOpenDateIndex = i + 1;
-          prices.splice(i + 1, 0, {datetime: moment(signalOpenDate).utc().format(), value: signalOpenPrice});
+          prices.splice(i + 1, 0, {datetime: moment(openDate).utc().format(), value: openPrice});
           break;
         }
       }
     }
     let signalCloseDateIndex;
-    if (!signalCloseDate) {
+    if (!closeDate) {
       signalCloseDateIndex = null;
-      if (moment().diff(signalOpenDate, 'minutes') > 1) {
-        prices.push({datetime: moment().utc().format(), value: signalClosePrice});
+      if (moment().diff(openDate, 'minutes') > 1) {
+        prices.push({datetime: moment().utc().format(), value: closePrice});
       }
     }
     else {
-      const signalCloseDateTimestamp = getTimestamp(signalCloseDate);
-      if (signalCloseDateTimestamp > getTimestamp(prices.slice(-1)[0].datetime)) {
+      const signalCloseDateTimestamp = getTimestamp(closeDate);
+      if (signalOpenDateTimestamp === signalCloseDateTimestamp) {
+        signalCloseDateIndex = signalOpenDateIndex;
+      }
+      else if (signalCloseDateTimestamp > getTimestamp(prices.slice(-1)[0].datetime)) {
         signalCloseDateIndex = prices.length;
-        prices.push({datetime: moment(signalCloseDate).utc().format(), value: signalClosePrice});
+        prices.push({datetime: moment(closeDate).utc().format(), value: closePrice});
       }
       else {
         for (let i = signalOpenDateIndex; i < prices.length - 1; i++) {
           if (signalCloseDateTimestamp > getTimestamp(prices[i].datetime) && signalCloseDateTimestamp < getTimestamp(prices[i + 1].datetime)) {
             signalCloseDateIndex = i + 1;
-            prices.splice(i + 1, 0, {datetime: moment(signalCloseDate).utc().format(), value: signalClosePrice});
+            prices.splice(i + 1, 0, {datetime: moment(closeDate).utc().format(), value: closePrice});
             break;
           }
         }
       }
     }
-    let competitionStartDateIndex;
-    if ([undefined, signalOpenDate].includes(competitionStartDate)) { // eslint-disable-line no-undefined
-      competitionStartDateIndex = signalOpenDateIndex;
-    }
-    else {
-      const competitionStartDateTimestamp = getTimestamp(competitionStartDate);
-      const competitionStartDateISO = moment(competitionStartDate).utc().format();
-      for (let i = signalOpenDateIndex; i < prices.length - 1; i++) {
-        if (prices[i + 1].datetime === competitionStartDateISO) {
-          competitionStartDateIndex = i + 1;
-          break;
-        }
-        if (competitionStartDateTimestamp > getTimestamp(prices[i].datetime) && competitionStartDateTimestamp < getTimestamp(prices[i + 1].datetime)) {
-          competitionStartDateIndex = i + 1;
-          prices.splice(i + 1, 0, {datetime: competitionStartDateISO, value: competitionStartPrice});
-          if (signalCloseDateIndex !== null) {
-            signalCloseDateIndex++;
-          }
-          if (signalOpenDateIndex > competitionStartDateIndex) {
-            signalOpenDateIndex++;
-          }
-          break;
-        }
-      }
-    }
 
-    let competitionEndDateIndex;
-    if ([undefined, signalCloseDate].includes(competitionEndDate)) { // eslint-disable-line no-undefined
-      competitionEndDateIndex = signalCloseDateIndex;
-    }
-    else {
-      const competitionEndDateTimestamp = getTimestamp(competitionEndDate);
-      for (let i = signalOpenDateIndex; i < prices.length - 1; i++) {
-        if (competitionEndDateTimestamp > getTimestamp(prices[i].datetime) && competitionEndDateTimestamp < getTimestamp(prices[i + 1].datetime)) {
-          competitionEndDateIndex = i + 1;
-          prices.splice(i + 1, 0, {datetime: moment(competitionEndDateTimestamp).utc().format(), value: competitionEndPrice});
-          if (signalCloseDateIndex !== null && signalCloseDateIndex > competitionEndDateIndex) {
-            signalCloseDateIndex++;
-          }
-          break;
-        }
-      }
-    }
-    return {prices, signalOpenDateIndex, signalCloseDateIndex, competitionStartDateIndex, competitionEndDateIndex};
+    return {prices, signalOpenDateIndex, signalCloseDateIndex};
   }
   catch (e) {
     throw e;
@@ -150,9 +110,9 @@ export default async function getChartData(forecast, timeframe = timeframe_4_h) 
 function getPrices({symbol, from, to, interval}) {
   const token = TOKENS.find(token => token.symbol === symbol);
   if (!token) {
-    captureException(new Error('No symbol'), {symbol});
+    console.error(new Error(`No symbol ${symbol}`));
   }
-  const {slug, metric, id} = token;
+  const {slug, metric} = token;
   return fetchSanApi(`
     {
       getMetric(metric:"${metric}") {
@@ -161,6 +121,7 @@ function getPrices({symbol, from, to, interval}) {
           from:"${from.toISOString()}",
           to:"${to.toISOString()}",
           interval: "${interval}",
+          selector: {source: "cryptocompare"}
         ) {
           value
           datetime
@@ -173,15 +134,7 @@ function getPrices({symbol, from, to, interval}) {
       if (errors) {
         throw new Error(JSON.stringify(errors));
       }
-      if (id === LEND) {
-        data.getMetric.timeseriesData = data.getMetric.timeseriesData.map(({datetime, value}) => {
-          const momentDatetime = moment(datetime);
-          if (momentDatetime.isAfter('2020-10-19T13:00:00Z') && momentDatetime.isBefore('2020-10-19T16:00:00Z') && value > 0.001 || momentDatetime.isSameOrAfter('2020-10-19T16:00:00Z')) {
-            value /= 100;
-          }
-          return {datetime, value};
-        });
-      }
+
       return data.getMetric.timeseriesData;
     })
     .catch(e => {
