@@ -1,6 +1,6 @@
-import moment from 'moment';
-import TOKENS from './TOKENS';
-import fetch from 'node-fetch';
+const moment = require('moment');
+const {TOKENS} = require('./TOKENS');
+const fetch = require('node-fetch');
 
 
 function fetchSanApi(body) {
@@ -11,16 +11,16 @@ function fetchSanApi(body) {
   return fetch('https://api.santiment.net/graphql', options);
 }
 
-export const timeframe_15_min = 'timeframe_15_min';
-export const timeframe_4_h = 'timeframe_4_h';
-export const timeframe_2_h = 'timeframe_2_h';
-
+const timeframe_15_min = 'timeframe_15_min';
+const timeframe_4_h = 'timeframe_4_h';
+const timeframe_2_h = 'timeframe_2_h';
+exports.timeframe_15_min = timeframe_15_min;
 
 function getTimestamp(time) {
   return new Date(time).getTime();
 }
 
-export default async function getChartData(forecast, timeframe = timeframe_4_h) {
+exports.getChartData = async (forecast, timeframe = timeframe_4_h) => {
   let interval;
   switch (timeframe) {
     case timeframe_4_h:
@@ -105,7 +105,7 @@ export default async function getChartData(forecast, timeframe = timeframe_4_h) 
   catch (e) {
     throw e;
   }
-}
+};
 
 function getPrices({symbol, from, to, interval}) {
   const token = TOKENS.find(token => token.symbol === symbol);

@@ -1,16 +1,14 @@
-/* eslint-disable import/no-nodejs-modules */
-
-import getChartData, {timeframe_15_min} from 'App/utils/getChartData';
-import fs from 'fs';
-import path from 'path';
-import {convert} from 'convert-svg-to-png';
+const {getChartData, timeframe_15_min} = require('./getChartData');
+const fs = require('fs');
+const path = require('path');
+const {convert} = require('convert-svg-to-png');
 
 const gray20 = '#7A859E';
 const dragon = '#65B67D';
 const phoenix = '#E4645B';
 const gray70 = '#1E2028';
 
-export async function createImage({forecast, signalsContractAddress, imagePath}) {
+exports.createImage = async ({forecast, signalsContractAddress, imagePath}) => {
   const width = 1200;
   const height = 630;
   const margin = 32;
@@ -51,4 +49,4 @@ export async function createImage({forecast, signalsContractAddress, imagePath})
 
 
   fs.writeFileSync(imagePath, await convert(svg));
-}
+};
