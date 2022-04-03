@@ -1,7 +1,6 @@
 const {getChartData, timeframe_15_min} = require('./getChartData');
 const fs = require('fs');
 const path = require('path');
-const {convert} = require('convert-svg-to-png');
 const sharp = require('sharp');
 
 const gray20 = '#7A859E';
@@ -62,6 +61,12 @@ exports.createImage = async ({forecast, signalsContractAddress, imagePath}) => {
     `;
   }
 
+  function circle(idx) {
+    return `
+      <circle cx="${marginPoints[idx][0]}" cy="${marginPoints[idx][1]}" fill="${gray70}" r="4"/>
+    `;
+  }
+
   const svg = `
     <svg width="${width}" height="${height}" preserveAspectRatio="none" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
       <rect width="100%" height="100%" fill="white"/>
@@ -77,8 +82,9 @@ exports.createImage = async ({forecast, signalsContractAddress, imagePath}) => {
         stroke="${signalCloseDateIndex === null ? gray70 : forecast.performance > 0 ? dragon : phoenix}"
         strokeWidth="1"
       />
-      ${triangle(signalOpenDateIndex, forecast.direction === 'up', true)}
+      ${signalCloseDateIndex !== null ? triangle(signalOpenDateIndex, forecast.direction === 'up', true) : ''}
       ${signalCloseDateIndex !== null ? triangle(signalCloseDateIndex, forecast.direction !== 'up', false) : ''}
+      ${signalCloseDateIndex === null ? circle(signalOpenDateIndex) : ''}
     </svg>
   `.replace(/\n/g, '');
 
