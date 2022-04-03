@@ -2,6 +2,7 @@ const {getChartData, timeframe_15_min} = require('./getChartData');
 const fs = require('fs');
 const path = require('path');
 const {convert} = require('convert-svg-to-png');
+const sharp = require('sharp');
 
 const gray20 = '#7A859E';
 const dragon = '#65B67D';
@@ -55,7 +56,7 @@ exports.createImage = async ({forecast, signalsContractAddress, imagePath}) => {
       />
       <g transform="translate(${(setX2 + setX1) / 2 - rectWidth / 2 - 50}, ${(rise ? riseY : setY) + (rise ? 1 : -1) * rectHeight - 9 + (rise ? 12 : -8)})">
         <svg height="18" width="100">
-          <text alignment-baseline="middle" x="50%" text-anchor="middle y="50%" font-size="smaller">${withText ? `San.${rise ? 'Rise' : 'Set'}` : 'Close'}</text>
+          <text alignment-baseline="middle" x="50%" text-anchor="middle" y="50%" font-size="1.05em">${withText ? `San.${rise ? 'Rise' : 'Set'}` : 'Close'}</text>
         </svg>
       </g>
     `;
@@ -81,8 +82,6 @@ exports.createImage = async ({forecast, signalsContractAddress, imagePath}) => {
     </svg>
   `.replace(/\n/g, '');
 
-  console.log(svg);
 
-
-  fs.writeFileSync(imagePath, await convert(svg));
+  await sharp(Buffer.from(svg)).png().toFile(imagePath);
 };
