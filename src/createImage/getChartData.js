@@ -1,5 +1,4 @@
 const moment = require('moment');
-const {TOKENS} = require('./TOKENS');
 const fetch = require('node-fetch');
 
 
@@ -42,6 +41,7 @@ exports.getChartData = async (forecast, timeframe = timeframe_4_h) => {
       closeDate,
       openPrice,
       closePrice,
+      slug,
     } = forecast;
     const to = symbol
       ? moment().diff(openDate, 'w') < 3 ? moment() : moment(openDate).add(moment(closeDate).diff(openDate, 'seconds') / 2, 'seconds').add(2, 'w')
@@ -52,6 +52,7 @@ exports.getChartData = async (forecast, timeframe = timeframe_4_h) => {
       from: moment(to).subtract(4, 'w'),
       to,
       interval,
+      slug,
     });
     const signalOpenDateTimestamp = getTimestamp(openDate);
     let signalOpenDateIndex;
@@ -100,19 +101,15 @@ exports.getChartData = async (forecast, timeframe = timeframe_4_h) => {
       }
     }
 
-    return {prices, signalOpenDateIndex, signalCloseDateIndex};
+    return {prices: prices.map(el => ({value: el.value, time: getTimestamp(el.datetime)})), signalOpenDateIndex, signalCloseDateIndex};
   }
   catch (e) {
     throw e;
   }
 };
 
-function getPrices({symbol, from, to, interval}) {
-  const token = TOKENS.find(token => token.symbol === symbol);
-  if (!token) {
-    console.error(new Error(`No symbol ${symbol}`));
-  }
-  const {slug, metric} = token;
+function getPrices({symbol, from, to, interval, slug}) {
+  const metric = `price_${symbol.split('/')[1].toLowerCase()}`;
   return fetchSanApi(`
     {
       getMetric(metric:"${metric}") {
@@ -140,4 +137,9 @@ function getPrices({symbol, from, to, interval}) {
     .catch(e => {
       throw e;
     });
+}
+
+const minutesTzOffset = new Date().getTimezoneOffset();
+function getTimestamp(date) {
+  return (new Date(date).getTime() - minutesTzOffset * 60 * 1000) / 1000;
 }

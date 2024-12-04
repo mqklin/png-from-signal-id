@@ -1,167 +1,294 @@
 const { getChartData } = require('./getChartData');
-const sharp = require('sharp');
-const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
-const { registerFont } = require('canvas');
-const { getChart } = require('./getChart');
+const fs = require('fs'); // eslint-disable-line import/no-nodejs-modules
+const puppeteer = require('puppeteer');
+const moment = require('moment');
+const {roundTokenValue} = require('./roundTokenValue');
 
-GlobalFonts.registerFromPath('./src/createImage/fonts/Poppins-Regular.ttf', 'Poppins');
-GlobalFonts.registerFromPath('./src/createImage/fonts/Poppins-Bold.ttf', 'PoppinsBold');
-GlobalFonts.registerFromPath('./src/createImage/fonts/Poppins-SemiBold.ttf', 'PoppinsSemiBold');
-GlobalFonts.registerFromPath('./src/createImage/fonts/Poppins-Italic.ttf', 'PoppinsItalic');
 
-const gray20 = '#7A859E';
-const dragon = '#65B67D';
-const phoenix = '#E4645B';
-const gray70 = '#1E2028';
-const gray40 = '#464A5C';
-const gray25 = '#E9EAF0';
-const textPrimary = '#313141';
-const textSecondary = '#6E778D';
-const successNormal = '#28A138';
-const errorNormal = '#D21C1C';
-
-exports.createImage = async ({forecast, imagePath}) => {
-  const width = 1200;
-  const height = 630;
-  const marginX = 32;
-  const marginY = 80;
-
+exports.createImage = async ({
+  forecast,
+  imagePath,
+}) => {
   const {signalOpenDateIndex, signalCloseDateIndex, prices} = await getChartData(forecast);
 
-  const chart = await getChart();
+  const {issuer, openDate, closeDate, symbol, openPrice, closePrice, performance, leverage, status, closeType, direction} = forecast;
+  console.log(prices[0]);
+  console.log(prices[signalOpenDateIndex].time);
+  const statusText = status === 'open' ? 'Opened' : 'Closed ' + (() => {
+    switch (closeType) {
+      case 'user_auto_closed_signal':
+        return ' by 2w rule';
+      case 'signal_stop_loss_triggered':
+        return ' by stop-loss';
+      case 'signal_take_profit_triggered':
+        return ' by take-profit';
+      case 'user_closed_signal':
+        return ' manually';
+      default:
+        return '';
+    }
+  })();
 
-  const chartPoints = prices.map(({datetime, value}) => [Number(new Date(datetime)), value]);
 
-  const minDate = Math.min(...chartPoints.map(([x]) => x));
-  const minPrice = Math.min(...chartPoints.map(([, y]) => y));
-
-  const shiftedChartPoints = chartPoints.map(([x, y]) => [x - minDate, y - minPrice]);
-
-  const maxShiftedDate = Math.max(...shiftedChartPoints.map(([x]) => x));
-  const maxShiftedPrice = Math.max(...shiftedChartPoints.map(([, y]) => y));
-
-  const points = shiftedChartPoints.map(([x, y]) => [x / maxShiftedDate * width, height - y / maxShiftedPrice * height]);
-  const marginPoints = points.map(([x, y]) => [(x - width / 2) * (width / 2 - marginX) / (width / 2) + width / 2, (y - height / 2) * (height / 2 - marginY) / (height / 2) + height / 2]);
-
-  function triangle(idx, rise, withText) {
-    const riseY =  marginPoints[idx][1] + 10;
-
-    const setX1 = marginPoints[idx][0] - 7;
-    const setX2 = marginPoints[idx][0] + 7;
-    const setY =  marginPoints[idx][1] - 10;
-
-    const rectWidth = 4;
-    const rectHeight = 15;
-    return `
-      <polyline
-        fill="${gray40}"
-        points="${marginPoints[idx].join(',')} ${setX1},${rise ? riseY : setY} ${setX2},${rise ? riseY : setY}"
-      />
-      <rect
-        fill="${gray40}"
-        x="${(setX2 + setX1) / 2 - rectWidth / 2}"
-        y="${rise ? riseY : setY - rectHeight}"
-        width="${rectWidth}"
-        height="${rectHeight}"
-      />
-      <g transform="translate(${(setX2 + setX1) / 2 - rectWidth / 2 - 50}, ${(rise ? riseY : setY) + (rise ? 1 : -1) * rectHeight - 9 + (rise ? 12 : -8)})">
-        <svg height="18" width="100">
-          <text alignment-baseline="middle" x="50%" text-anchor="middle" y="50%" font-size="1.05em">${withText ? `San.${rise ? 'Rise' : 'Set'}` : 'Close'}</text>
-        </svg>
-      </g>
-    `;
-  }
-
-  function circle(idx) {
-    return `
-      <circle cx="${marginPoints[idx][0]}" cy="${marginPoints[idx][1]}" fill="${gray70}" r="4"/>
-    `;
-  }
-
-  const svg = `
-    <svg width="${width}" height="${height}" preserveAspectRatio="none" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100%" height="100%" fill="white"/>
-      ${
-        signalCloseDateIndex !== null
-          ? triangle(signalOpenDateIndex, forecast.direction === "up", true)
-          : ''
-      }
-      ${
-        signalCloseDateIndex !== null
-          ? triangle(signalCloseDateIndex, forecast.direction !== "up", false)
-          : ''
-      }
-      ${signalCloseDateIndex === null ? circle(signalOpenDateIndex) : ''}
-      ${getBanner()}
-    </svg>
-  `.replace(/\n/g, '');
-
-  const imageBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
-  const chartBuffer = await sharp(Buffer.from(chart)).png().toBuffer();
-  const img = await loadImage(imageBuffer);
-  const imgWithChart = await loadImage(chartBuffer);
-  const canvas = createCanvas(img.width, img.height);
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0);
-  ctx.fillStyle = "white";
-  ctx.fillRect(0, 50, 360, 580);
-  ctx.fillStyle = textPrimary;
-  ctx.font = "24px PoppinsSemiBold";
-  ctx.fillText('Signalizat0r', 150, 100); // Username
-  ctx.fillStyle = textSecondary;
-  ctx.font = "18px Poppins";
-  ctx.fillText('Signal details', 40, 175); // Signal details
-  ctx.fillStyle = textPrimary;
-  ctx.font = "24px PoppinsBold";
-  ctx.fillText('BTC/USD', 150, 225); // Tokens
-  ctx.fillStyle = textSecondary;
-  ctx.font = "18px Poppins";
-  ctx.fillText('Perfomance', 40, 275); // Signal details
-  ctx.fillStyle = successNormal;
-  ctx.font = "28px PoppinsSemiBold";
-  ctx.fillText('25%', 40, 315); // Perfomance value
-  ctx.fillStyle = textSecondary;
-  ctx.font = "18px Poppins";
-  ctx.fillText('Opening price', 40, 373); 
-  ctx.fillText('Closing price', 220, 373); 
-  ctx.fillStyle = "#E3E5EE";  // Divider background
-  ctx.fillRect(195, 363, 1, 46);
-  ctx.fillStyle = textPrimary;
-  ctx.font = "28px PoppinsSemiBold";
-  ctx.fillText('33000.00', 40, 407); // Price value
-  ctx.fillText('35000.00', 220, 407); // Price value
-  ctx.fillStyle = textSecondary;
-  ctx.font = "18px Poppins";
-  ctx.fillText('Leverage performance', 40, 457); 
-  ctx.fillStyle = successNormal;
-  ctx.font = "28px PoppinsSemiBold";
-  ctx.fillText('250% (10x)', 40, 497); // Leverage value
-  ctx.fillStyle = textSecondary;
-  ctx.font = "18px Poppins";
-  ctx.fillText('Status', 40, 547); 
-  ctx.fillStyle = textPrimary;
-  ctx.font = "28px PoppinsSemiBold";
-  ctx.fillText('Closed by take profit', 68, 584);
-  ctx.fillStyle = errorNormal;
-  ctx.beginPath();
-  ctx.arc(48, 576, 8, 0, 2 * Math.PI);
-  ctx.fill();
-  ctx.drawImage(imgWithChart, 455, 100);
-
-  // const meme = await loadImage('down.png');
-  // ctx.drawImage(meme, 0, 0, 93, 93);
-  const buffer = canvas.toBuffer('image/png');
-  await sharp(buffer).png().toFile(imagePath);
+  return await getChart(
+    imagePath,
+    {
+      username: issuer.username,
+      avatar: issuer.avatar || await getRandomAvatar(issuer.address),
+      openDate,
+      closeDate,
+      symbol,
+      openPrice,
+      closePrice,
+      performance,
+      leverage,
+      statusText,
+      prices,
+      direction,
+      signalOpenDateIndex,
+      signalCloseDateIndex,
+    },
+  );
 };
 
-function getBanner() {
-  return `<svg width="1200" height="50" viewBox="0 0 1200 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1200" height="50" fill="#265CC6"/>
-  <path d="M55.952 33.154C54.8227 33.154 53.8107 32.9707 52.916 32.604C52.0213 32.2373 51.3027 31.6947 50.76 30.976C50.232 30.2573 49.9533 29.392 49.924 28.38H53.928C53.9867 28.952 54.1847 29.392 54.522 29.7C54.8593 29.9933 55.2993 30.14 55.842 30.14C56.3993 30.14 56.8393 30.0153 57.162 29.766C57.4847 29.502 57.646 29.1427 57.646 28.688C57.646 28.3067 57.514 27.9913 57.25 27.742C57.0007 27.4927 56.6853 27.2873 56.304 27.126C55.9373 26.9647 55.4093 26.7813 54.72 26.576C53.7227 26.268 52.9087 25.96 52.278 25.652C51.6473 25.344 51.1047 24.8893 50.65 24.288C50.1953 23.6867 49.968 22.902 49.968 21.934C49.968 20.4967 50.4887 19.3747 51.53 18.568C52.5713 17.7467 53.928 17.336 55.6 17.336C57.3013 17.336 58.6727 17.7467 59.714 18.568C60.7553 19.3747 61.3127 20.504 61.386 21.956H57.316C57.2867 21.4573 57.1033 21.0687 56.766 20.79C56.4287 20.4967 55.996 20.35 55.468 20.35C55.0133 20.35 54.6467 20.4747 54.368 20.724C54.0893 20.9587 53.95 21.3033 53.95 21.758C53.95 22.2567 54.1847 22.6453 54.654 22.924C55.1233 23.2027 55.8567 23.5033 56.854 23.826C57.8513 24.1633 58.658 24.486 59.274 24.794C59.9047 25.102 60.4473 25.5493 60.902 26.136C61.3567 26.7227 61.584 27.478 61.584 28.402C61.584 29.282 61.3567 30.0813 60.902 30.8C60.462 31.5187 59.8167 32.0907 58.966 32.516C58.1153 32.9413 57.1107 33.154 55.952 33.154ZM63.1512 26.84C63.1512 25.5787 63.3858 24.4713 63.8552 23.518C64.3392 22.5647 64.9918 21.8313 65.8132 21.318C66.6345 20.8047 67.5512 20.548 68.5632 20.548C69.4285 20.548 70.1838 20.724 70.8292 21.076C71.4892 21.428 71.9952 21.89 72.3472 22.462V20.724H76.1092V33H72.3472V31.262C71.9805 31.834 71.4672 32.296 70.8072 32.648C70.1618 33 69.4065 33.176 68.5412 33.176C67.5438 33.176 66.6345 32.9193 65.8132 32.406C64.9918 31.878 64.3392 31.1373 63.8552 30.184C63.3858 29.216 63.1512 28.1013 63.1512 26.84ZM72.3472 26.862C72.3472 25.9233 72.0832 25.1827 71.5552 24.64C71.0418 24.0973 70.4112 23.826 69.6632 23.826C68.9152 23.826 68.2772 24.0973 67.7492 24.64C67.2358 25.168 66.9792 25.9013 66.9792 26.84C66.9792 27.7787 67.2358 28.5267 67.7492 29.084C68.2772 29.6267 68.9152 29.898 69.6632 29.898C70.4112 29.898 71.0418 29.6267 71.5552 29.084C72.0832 28.5413 72.3472 27.8007 72.3472 26.862ZM86.3108 20.592C87.7481 20.592 88.8921 21.0613 89.7428 22C90.6081 22.924 91.0408 24.2 91.0408 25.828V33H87.3008V26.334C87.3008 25.5127 87.0881 24.8747 86.6628 24.42C86.2375 23.9653 85.6655 23.738 84.9468 23.738C84.2281 23.738 83.6561 23.9653 83.2308 24.42C82.8055 24.8747 82.5928 25.5127 82.5928 26.334V33H78.8308V20.724H82.5928V22.352C82.9741 21.8093 83.4875 21.384 84.1328 21.076C84.7781 20.7533 85.5041 20.592 86.3108 20.592ZM101.531 33L98.319 27.17H97.417V33H93.655V17.556H99.969C101.186 17.556 102.22 17.7687 103.071 18.194C103.936 18.6193 104.582 19.206 105.007 19.954C105.432 20.6873 105.645 21.5087 105.645 22.418C105.645 23.4447 105.352 24.3613 104.765 25.168C104.193 25.9747 103.342 26.5467 102.213 26.884L105.777 33H101.531ZM97.417 24.508H99.749C100.438 24.508 100.952 24.3393 101.289 24.002C101.641 23.6647 101.817 23.188 101.817 22.572C101.817 21.9853 101.641 21.5233 101.289 21.186C100.952 20.8487 100.438 20.68 99.749 20.68H97.417V24.508Z" fill="white"/>
-  <circle cx="27" cy="25" r="14" fill="white"/>
-  <path d="M23.7569 29.7525C24.1281 29.9788 24.5642 30.1768 25.0652 30.3465C25.5848 30.4974 26.1137 30.5728 26.6519 30.5728C27.2643 30.5728 27.7839 30.422 28.2107 30.1203C28.6375 29.7997 28.8509 29.2905 28.8509 28.5928C28.8509 28.0082 28.721 27.5273 28.4612 27.1501C28.2014 26.773 27.8674 26.4335 27.4591 26.1318C27.0694 25.8301 26.6426 25.5566 26.1787 25.3115C25.7147 25.0474 25.2786 24.7363 24.8704 24.378C24.4807 24.0197 24.1559 23.5954 23.8961 23.1051C23.6363 22.6148 23.5064 21.9925 23.5064 21.2381C23.5064 20.0312 23.8219 19.126 24.4528 18.5226C25.1023 17.9003 26.0116 17.5891 27.1807 17.5891C27.9416 17.5891 28.6004 17.6645 29.1571 17.8154C29.7138 17.9474 30.1963 18.136 30.6046 18.3811L30.0757 20.0784C29.7231 19.8898 29.3148 19.7389 28.8509 19.6258C28.387 19.4938 27.9138 19.4278 27.4313 19.4278C26.7632 19.4278 26.2714 19.5692 25.956 19.8521C25.659 20.1349 25.5106 20.5781 25.5106 21.1816C25.5106 21.653 25.6405 22.0585 25.9003 22.3979C26.1601 22.7185 26.4848 23.0202 26.8746 23.3031C27.2828 23.5671 27.7189 23.8405 28.1828 24.1234C28.6468 24.4063 29.0736 24.7457 29.4633 25.1417C29.8716 25.5189 30.2056 25.9809 30.4654 26.5278C30.7252 27.0558 30.8551 27.7253 30.8551 28.5362C30.8551 29.0642 30.7716 29.5639 30.6046 30.0354C30.4376 30.5068 30.1778 30.9217 29.8252 31.28C29.4911 31.6195 29.0643 31.8929 28.5447 32.1003C28.0437 32.3078 27.4498 32.4115 26.7632 32.4115C25.9467 32.4115 25.2415 32.3266 24.6477 32.1569C24.0538 32.0061 23.5528 31.7986 23.1445 31.5346L23.7569 29.7525Z" fill="#265CC6"/>
-  <ellipse cx="18.0067" cy="24.8542" rx="1.61373" ry="1.63988" fill="#265CC6"/>
-  <ellipse cx="35.992" cy="24.8542" rx="1.61373" ry="1.63988" fill="#265CC6"/>
-  <path d="M122.594 24.664C122.594 23.416 122.864 22.306 123.404 21.334C123.944 20.35 124.694 19.588 125.654 19.048C126.626 18.496 127.724 18.22 128.948 18.22C130.448 18.22 131.732 18.616 132.8 19.408C133.868 20.2 134.582 21.28 134.942 22.648H131.558C131.306 22.12 130.946 21.718 130.478 21.442C130.022 21.166 129.5 21.028 128.912 21.028C127.964 21.028 127.196 21.358 126.608 22.018C126.02 22.678 125.726 23.56 125.726 24.664C125.726 25.768 126.02 26.65 126.608 27.31C127.196 27.97 127.964 28.3 128.912 28.3C129.5 28.3 130.022 28.162 130.478 27.886C130.946 27.61 131.306 27.208 131.558 26.68H134.942C134.582 28.048 133.868 29.128 132.8 29.92C131.732 30.7 130.448 31.09 128.948 31.09C127.724 31.09 126.626 30.82 125.654 30.28C124.694 29.728 123.944 28.966 123.404 27.994C122.864 27.022 122.594 25.912 122.594 24.664ZM139.905 22.63C140.265 22.078 140.715 21.646 141.255 21.334C141.795 21.01 142.395 20.848 143.055 20.848V24.106H142.209C141.441 24.106 140.865 24.274 140.481 24.61C140.097 24.934 139.905 25.51 139.905 26.338V31H136.827V20.956H139.905V22.63ZM154.786 20.956L148.486 35.77H145.174L147.478 30.658L143.392 20.956H146.83L149.152 27.238L151.456 20.956H154.786ZM158.977 22.378C159.277 21.91 159.691 21.532 160.219 21.244C160.747 20.956 161.365 20.812 162.073 20.812C162.901 20.812 163.651 21.022 164.323 21.442C164.995 21.862 165.523 22.462 165.907 23.242C166.303 24.022 166.501 24.928 166.501 25.96C166.501 26.992 166.303 27.904 165.907 28.696C165.523 29.476 164.995 30.082 164.323 30.514C163.651 30.934 162.901 31.144 162.073 31.144C161.377 31.144 160.759 31 160.219 30.712C159.691 30.424 159.277 30.052 158.977 29.596V35.788H155.899V20.956H158.977V22.378ZM163.369 25.96C163.369 25.192 163.153 24.592 162.721 24.16C162.301 23.716 161.779 23.494 161.155 23.494C160.543 23.494 160.021 23.716 159.589 24.16C159.169 24.604 158.959 25.21 158.959 25.978C158.959 26.746 159.169 27.352 159.589 27.796C160.021 28.24 160.543 28.462 161.155 28.462C161.767 28.462 162.289 28.24 162.721 27.796C163.153 27.34 163.369 26.728 163.369 25.96ZM173.714 28.39V31H172.148C171.032 31 170.162 30.73 169.538 30.19C168.914 29.638 168.602 28.744 168.602 27.508V23.512H167.378V20.956H168.602V18.508H171.68V20.956H173.696V23.512H171.68V27.544C171.68 27.844 171.752 28.06 171.896 28.192C172.04 28.324 172.28 28.39 172.616 28.39H173.714ZM180.001 31.144C179.017 31.144 178.129 30.934 177.337 30.514C176.557 30.094 175.939 29.494 175.483 28.714C175.039 27.934 174.817 27.022 174.817 25.978C174.817 24.946 175.045 24.04 175.5 23.26C175.957 22.468 176.581 21.862 177.373 21.442C178.165 21.022 179.053 20.812 180.037 20.812C181.021 20.812 181.909 21.022 182.701 21.442C183.493 21.862 184.117 22.468 184.573 23.26C185.029 24.04 185.257 24.946 185.257 25.978C185.257 27.01 185.023 27.922 184.555 28.714C184.099 29.494 183.469 30.094 182.665 30.514C181.873 30.934 180.985 31.144 180.001 31.144ZM180.001 28.48C180.589 28.48 181.087 28.264 181.495 27.832C181.915 27.4 182.125 26.782 182.125 25.978C182.125 25.174 181.921 24.556 181.513 24.124C181.117 23.692 180.625 23.476 180.037 23.476C179.437 23.476 178.939 23.692 178.543 24.124C178.147 24.544 177.949 25.162 177.949 25.978C177.949 26.782 178.141 27.4 178.525 27.832C178.921 28.264 179.413 28.48 180.001 28.48ZM193.782 22.378C194.082 21.91 194.496 21.532 195.024 21.244C195.552 20.956 196.17 20.812 196.878 20.812C197.706 20.812 198.456 21.022 199.128 21.442C199.8 21.862 200.328 22.462 200.712 23.242C201.108 24.022 201.306 24.928 201.306 25.96C201.306 26.992 201.108 27.904 200.712 28.696C200.328 29.476 199.8 30.082 199.128 30.514C198.456 30.934 197.706 31.144 196.878 31.144C196.182 31.144 195.564 31 195.024 30.712C194.496 30.424 194.082 30.052 193.782 29.596V35.788H190.704V20.956H193.782V22.378ZM198.174 25.96C198.174 25.192 197.958 24.592 197.526 24.16C197.106 23.716 196.584 23.494 195.96 23.494C195.348 23.494 194.826 23.716 194.394 24.16C193.974 24.604 193.764 25.21 193.764 25.978C193.764 26.746 193.974 27.352 194.394 27.796C194.826 28.24 195.348 28.462 195.96 28.462C196.572 28.462 197.094 28.24 197.526 27.796C197.958 27.34 198.174 26.728 198.174 25.96ZM205.999 22.63C206.359 22.078 206.809 21.646 207.349 21.334C207.889 21.01 208.489 20.848 209.149 20.848V24.106H208.303C207.535 24.106 206.959 24.274 206.575 24.61C206.191 24.934 205.999 25.51 205.999 26.338V31H202.921V20.956H205.999V22.63ZM212.168 19.912C211.628 19.912 211.184 19.756 210.836 19.444C210.5 19.12 210.332 18.724 210.332 18.256C210.332 17.776 210.5 17.38 210.836 17.068C211.184 16.744 211.628 16.582 212.168 16.582C212.696 16.582 213.128 16.744 213.464 17.068C213.812 17.38 213.986 17.776 213.986 18.256C213.986 18.724 213.812 19.12 213.464 19.444C213.128 19.756 212.696 19.912 212.168 19.912ZM213.698 20.956V31H210.62V20.956H213.698ZM215.317 25.978C215.317 24.934 215.527 24.022 215.947 23.242C216.379 22.462 216.973 21.862 217.729 21.442C218.497 21.022 219.373 20.812 220.357 20.812C221.617 20.812 222.667 21.142 223.507 21.802C224.359 22.462 224.917 23.392 225.181 24.592H221.905C221.629 23.824 221.095 23.44 220.303 23.44C219.739 23.44 219.289 23.662 218.953 24.106C218.617 24.538 218.449 25.162 218.449 25.978C218.449 26.794 218.617 27.424 218.953 27.868C219.289 28.3 219.739 28.516 220.303 28.516C221.095 28.516 221.629 28.132 221.905 27.364H225.181C224.917 28.54 224.359 29.464 223.507 30.136C222.655 30.808 221.605 31.144 220.357 31.144C219.373 31.144 218.497 30.934 217.729 30.514C216.973 30.094 216.379 29.494 215.947 28.714C215.527 27.934 215.317 27.022 215.317 25.978ZM236.295 25.816C236.295 26.104 236.277 26.404 236.241 26.716H229.275C229.323 27.34 229.521 27.82 229.869 28.156C230.229 28.48 230.667 28.642 231.183 28.642C231.951 28.642 232.485 28.318 232.785 27.67H236.061C235.893 28.33 235.587 28.924 235.143 29.452C234.711 29.98 234.165 30.394 233.505 30.694C232.845 30.994 232.107 31.144 231.291 31.144C230.307 31.144 229.431 30.934 228.663 30.514C227.895 30.094 227.295 29.494 226.863 28.714C226.431 27.934 226.215 27.022 226.215 25.978C226.215 24.934 226.425 24.022 226.845 23.242C227.277 22.462 227.877 21.862 228.645 21.442C229.413 21.022 230.295 20.812 231.291 20.812C232.263 20.812 233.127 21.016 233.883 21.424C234.639 21.832 235.227 22.414 235.647 23.17C236.079 23.926 236.295 24.808 236.295 25.816ZM233.145 25.006C233.145 24.478 232.965 24.058 232.605 23.746C232.245 23.434 231.795 23.278 231.255 23.278C230.739 23.278 230.301 23.428 229.941 23.728C229.593 24.028 229.377 24.454 229.293 25.006H233.145ZM244.811 22.378C245.111 21.91 245.525 21.532 246.053 21.244C246.581 20.956 247.199 20.812 247.907 20.812C248.735 20.812 249.485 21.022 250.157 21.442C250.829 21.862 251.357 22.462 251.741 23.242C252.137 24.022 252.335 24.928 252.335 25.96C252.335 26.992 252.137 27.904 251.741 28.696C251.357 29.476 250.829 30.082 250.157 30.514C249.485 30.934 248.735 31.144 247.907 31.144C247.211 31.144 246.593 31 246.053 30.712C245.525 30.424 245.111 30.052 244.811 29.596V35.788H241.733V20.956H244.811V22.378ZM249.203 25.96C249.203 25.192 248.987 24.592 248.555 24.16C248.135 23.716 247.613 23.494 246.989 23.494C246.377 23.494 245.855 23.716 245.423 24.16C245.003 24.604 244.793 25.21 244.793 25.978C244.793 26.746 245.003 27.352 245.423 27.796C245.855 28.24 246.377 28.462 246.989 28.462C247.601 28.462 248.123 28.24 248.555 27.796C248.987 27.34 249.203 26.728 249.203 25.96ZM257.028 22.63C257.388 22.078 257.838 21.646 258.378 21.334C258.918 21.01 259.518 20.848 260.178 20.848V24.106H259.332C258.564 24.106 257.988 24.274 257.604 24.61C257.22 24.934 257.028 25.51 257.028 26.338V31H253.95V20.956H257.028V22.63ZM271.117 25.816C271.117 26.104 271.099 26.404 271.063 26.716H264.097C264.145 27.34 264.343 27.82 264.691 28.156C265.051 28.48 265.489 28.642 266.005 28.642C266.773 28.642 267.307 28.318 267.607 27.67H270.883C270.715 28.33 270.409 28.924 269.965 29.452C269.533 29.98 268.987 30.394 268.327 30.694C267.667 30.994 266.929 31.144 266.113 31.144C265.129 31.144 264.253 30.934 263.485 30.514C262.717 30.094 262.117 29.494 261.685 28.714C261.253 27.934 261.037 27.022 261.037 25.978C261.037 24.934 261.247 24.022 261.667 23.242C262.099 22.462 262.699 21.862 263.467 21.442C264.235 21.022 265.117 20.812 266.113 20.812C267.085 20.812 267.949 21.016 268.705 21.424C269.461 21.832 270.049 22.414 270.469 23.17C270.901 23.926 271.117 24.808 271.117 25.816ZM267.967 25.006C267.967 24.478 267.787 24.058 267.427 23.746C267.067 23.434 266.617 23.278 266.077 23.278C265.561 23.278 265.123 23.428 264.763 23.728C264.415 24.028 264.199 24.454 264.115 25.006H267.967ZM272.129 25.96C272.129 24.928 272.321 24.022 272.705 23.242C273.101 22.462 273.635 21.862 274.307 21.442C274.979 21.022 275.729 20.812 276.557 20.812C277.217 20.812 277.817 20.95 278.357 21.226C278.909 21.502 279.341 21.874 279.653 22.342V17.68H282.731V31H279.653V29.56C279.365 30.04 278.951 30.424 278.411 30.712C277.883 31 277.265 31.144 276.557 31.144C275.729 31.144 274.979 30.934 274.307 30.514C273.635 30.082 273.101 29.476 272.705 28.696C272.321 27.904 272.129 26.992 272.129 25.96ZM279.653 25.978C279.653 25.21 279.437 24.604 279.005 24.16C278.585 23.716 278.069 23.494 277.457 23.494C276.845 23.494 276.323 23.716 275.891 24.16C275.471 24.592 275.261 25.192 275.261 25.96C275.261 26.728 275.471 27.34 275.891 27.796C276.323 28.24 276.845 28.462 277.457 28.462C278.069 28.462 278.585 28.24 279.005 27.796C279.437 27.352 279.653 26.746 279.653 25.978ZM286.506 19.912C285.966 19.912 285.522 19.756 285.174 19.444C284.838 19.12 284.67 18.724 284.67 18.256C284.67 17.776 284.838 17.38 285.174 17.068C285.522 16.744 285.966 16.582 286.506 16.582C287.034 16.582 287.466 16.744 287.802 17.068C288.15 17.38 288.324 17.776 288.324 18.256C288.324 18.724 288.15 19.12 287.802 19.444C287.466 19.756 287.034 19.912 286.506 19.912ZM288.036 20.956V31H284.958V20.956H288.036ZM289.654 25.978C289.654 24.934 289.864 24.022 290.284 23.242C290.716 22.462 291.31 21.862 292.066 21.442C292.834 21.022 293.71 20.812 294.694 20.812C295.954 20.812 297.004 21.142 297.844 21.802C298.696 22.462 299.254 23.392 299.518 24.592H296.242C295.966 23.824 295.432 23.44 294.64 23.44C294.076 23.44 293.626 23.662 293.29 24.106C292.954 24.538 292.786 25.162 292.786 25.978C292.786 26.794 292.954 27.424 293.29 27.868C293.626 28.3 294.076 28.516 294.64 28.516C295.432 28.516 295.966 28.132 296.242 27.364H299.518C299.254 28.54 298.696 29.464 297.844 30.136C296.992 30.808 295.942 31.144 294.694 31.144C293.71 31.144 292.834 30.934 292.066 30.514C291.31 30.094 290.716 29.494 290.284 28.714C289.864 27.934 289.654 27.022 289.654 25.978ZM306.763 28.39V31H305.197C304.081 31 303.211 30.73 302.587 30.19C301.963 29.638 301.651 28.744 301.651 27.508V23.512H300.427V20.956H301.651V18.508H304.729V20.956H306.745V23.512H304.729V27.544C304.729 27.844 304.801 28.06 304.945 28.192C305.089 28.324 305.329 28.39 305.665 28.39H306.763ZM310.025 19.912C309.485 19.912 309.041 19.756 308.693 19.444C308.357 19.12 308.189 18.724 308.189 18.256C308.189 17.776 308.357 17.38 308.693 17.068C309.041 16.744 309.485 16.582 310.025 16.582C310.553 16.582 310.985 16.744 311.321 17.068C311.669 17.38 311.843 17.776 311.843 18.256C311.843 18.724 311.669 19.12 311.321 19.444C310.985 19.756 310.553 19.912 310.025 19.912ZM311.555 20.956V31H308.477V20.956H311.555ZM318.358 31.144C317.374 31.144 316.486 30.934 315.694 30.514C314.914 30.094 314.296 29.494 313.84 28.714C313.396 27.934 313.174 27.022 313.174 25.978C313.174 24.946 313.402 24.04 313.858 23.26C314.314 22.468 314.938 21.862 315.73 21.442C316.522 21.022 317.41 20.812 318.394 20.812C319.378 20.812 320.266 21.022 321.058 21.442C321.85 21.862 322.474 22.468 322.93 23.26C323.386 24.04 323.614 24.946 323.614 25.978C323.614 27.01 323.38 27.922 322.912 28.714C322.456 29.494 321.826 30.094 321.022 30.514C320.23 30.934 319.342 31.144 318.358 31.144ZM318.358 28.48C318.946 28.48 319.444 28.264 319.852 27.832C320.272 27.4 320.482 26.782 320.482 25.978C320.482 25.174 320.278 24.556 319.87 24.124C319.474 23.692 318.982 23.476 318.394 23.476C317.794 23.476 317.296 23.692 316.9 24.124C316.504 24.544 316.306 25.162 316.306 25.978C316.306 26.782 316.498 27.4 316.882 27.832C317.278 28.264 317.77 28.48 318.358 28.48ZM331.367 20.848C332.543 20.848 333.479 21.232 334.175 22C334.883 22.756 335.237 23.8 335.237 25.132V31H332.177V25.546C332.177 24.874 332.003 24.352 331.655 23.98C331.307 23.608 330.839 23.422 330.251 23.422C329.663 23.422 329.195 23.608 328.847 23.98C328.499 24.352 328.325 24.874 328.325 25.546V31H325.247V20.956H328.325V22.288C328.637 21.844 329.057 21.496 329.585 21.244C330.113 20.98 330.707 20.848 331.367 20.848ZM354.006 20.848C355.254 20.848 356.244 21.226 356.976 21.982C357.72 22.738 358.092 23.788 358.092 25.132V31H355.032V25.546C355.032 24.898 354.858 24.4 354.51 24.052C354.174 23.692 353.706 23.512 353.106 23.512C352.506 23.512 352.032 23.692 351.684 24.052C351.348 24.4 351.18 24.898 351.18 25.546V31H348.12V25.546C348.12 24.898 347.946 24.4 347.598 24.052C347.262 23.692 346.794 23.512 346.194 23.512C345.594 23.512 345.12 23.692 344.772 24.052C344.436 24.4 344.268 24.898 344.268 25.546V31H341.19V20.956H344.268V22.216C344.58 21.796 344.988 21.466 345.492 21.226C345.996 20.974 346.566 20.848 347.202 20.848C347.958 20.848 348.63 21.01 349.218 21.334C349.818 21.658 350.286 22.12 350.622 22.72C350.97 22.168 351.444 21.718 352.044 21.37C352.644 21.022 353.298 20.848 354.006 20.848ZM359.633 25.96C359.633 24.928 359.825 24.022 360.209 23.242C360.605 22.462 361.139 21.862 361.811 21.442C362.483 21.022 363.233 20.812 364.061 20.812C364.769 20.812 365.387 20.956 365.915 21.244C366.455 21.532 366.869 21.91 367.157 22.378V20.956H370.235V31H367.157V29.578C366.857 30.046 366.437 30.424 365.897 30.712C365.369 31 364.751 31.144 364.043 31.144C363.227 31.144 362.483 30.934 361.811 30.514C361.139 30.082 360.605 29.476 360.209 28.696C359.825 27.904 359.633 26.992 359.633 25.96ZM367.157 25.978C367.157 25.21 366.941 24.604 366.509 24.16C366.089 23.716 365.573 23.494 364.961 23.494C364.349 23.494 363.827 23.716 363.395 24.16C362.975 24.592 362.765 25.192 362.765 25.96C362.765 26.728 362.975 27.34 363.395 27.796C363.827 28.24 364.349 28.462 364.961 28.462C365.573 28.462 366.089 28.24 366.509 27.796C366.941 27.352 367.157 26.746 367.157 25.978ZM375.54 22.63C375.9 22.078 376.35 21.646 376.89 21.334C377.43 21.01 378.03 20.848 378.69 20.848V24.106H377.844C377.076 24.106 376.5 24.274 376.116 24.61C375.732 24.934 375.54 25.51 375.54 26.338V31H372.462V20.956H375.54V22.63ZM386.299 31L383.239 26.788V31H380.161V17.68H383.239V25.042L386.281 20.956H390.079L385.903 25.996L390.115 31H386.299ZM400.756 25.816C400.756 26.104 400.738 26.404 400.702 26.716H393.736C393.784 27.34 393.982 27.82 394.33 28.156C394.69 28.48 395.128 28.642 395.644 28.642C396.412 28.642 396.946 28.318 397.246 27.67H400.522C400.354 28.33 400.048 28.924 399.604 29.452C399.172 29.98 398.626 30.394 397.966 30.694C397.306 30.994 396.568 31.144 395.752 31.144C394.768 31.144 393.892 30.934 393.124 30.514C392.356 30.094 391.756 29.494 391.324 28.714C390.892 27.934 390.676 27.022 390.676 25.978C390.676 24.934 390.886 24.022 391.306 23.242C391.738 22.462 392.338 21.862 393.106 21.442C393.874 21.022 394.756 20.812 395.752 20.812C396.724 20.812 397.588 21.016 398.344 21.424C399.1 21.832 399.688 22.414 400.108 23.17C400.54 23.926 400.756 24.808 400.756 25.816ZM397.606 25.006C397.606 24.478 397.426 24.058 397.066 23.746C396.706 23.434 396.256 23.278 395.716 23.278C395.2 23.278 394.762 23.428 394.402 23.728C394.054 24.028 393.838 24.454 393.754 25.006H397.606ZM407.978 28.39V31H406.412C405.296 31 404.426 30.73 403.802 30.19C403.178 29.638 402.866 28.744 402.866 27.508V23.512H401.642V20.956H402.866V18.508H405.944V20.956H407.96V23.512H405.944V27.544C405.944 27.844 406.016 28.06 406.16 28.192C406.304 28.324 406.544 28.39 406.88 28.39H407.978Z" fill="#EFF6FF"/>
-</svg>`;
+async function getRandomAvatar(address) {
+  address = address.toLowerCase();
+  const idx = [...address].reduce((acc, c) => acc + Number(c.codePointAt(0)), 0);
+  const imageData = fs.readFileSync(`${__dirname}/avatars/${idx % 10 + 1}.png`);
+  const base64Image = Buffer.from(imageData).toString('base64');
+  return `data:image/png;base64,${base64Image}`;
+}
+
+function formatDate(date) {
+  return moment(date).format('MMM DD ‘YY HH:mm');
+}
+
+const symbolIcon = undefined;
+
+const signalStatus = 'Closed by take profit';
+
+const main = '#313141';
+const success = '#28A138';
+const error = '#D21C1C';
+const secondary = '#6E778D';
+
+const getHtml = ({username, avatar, openDate, closeDate, symbol, openPrice, closePrice, performance, leverage, statusText, prices, direction, signalOpenDateIndex, signalCloseDateIndex}) => {
+  return `
+  <!DOCTYPE html>
+<head>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600;1,700;1,800&display=swap');
+  </style>
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body style="margin: 0; padding: 0">
+    <div style="height: 630px; width: 1200px; background: white; display: flex; flex-flow: column">
+      <div style="height: 52px; width: 1200px; display: flex; padding-left: 42px; align-items: center; background: #406EC7">
+        <svg width="24" height="25" viewBox="0 0 24 25" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g id="Logo">
+          <path id="Subtract" fill-rule="evenodd" clip-rule="evenodd" d="M12 24.5C18.6274 24.5 24 19.1274 24 12.5C24 5.87258 18.6274 0.5 12 0.5C5.37258 0.5 0 5.87258 0 12.5C0 19.1274 5.37258 24.5 12 24.5ZM12.0001 23.7703C18.2246 23.7703 23.2704 18.7244 23.2704 12.5C23.2704 6.27558 18.2246 1.22968 12.0001 1.22968C5.7757 1.22968 0.729811 6.27558 0.729811 12.5C0.729811 18.7244 5.7757 23.7703 12.0001 23.7703Z" fill="white"/>
+          <path id="s" d="M9.38911 16.3231C9.68789 16.5052 10.039 16.6646 10.4423 16.8013C10.8606 16.9227 11.2864 16.9835 11.7196 16.9835C12.2126 16.9835 12.6309 16.862 12.9745 16.6191C13.3181 16.361 13.4899 15.9511 13.4899 15.3894C13.4899 14.9188 13.3853 14.5317 13.1762 14.2281C12.967 13.9245 12.6981 13.6512 12.3695 13.4083C12.0557 13.1654 11.7121 12.9453 11.3387 12.7479C10.9652 12.5354 10.6141 12.2849 10.2855 11.9965C9.97173 11.708 9.7103 11.3664 9.50115 10.9717C9.292 10.577 9.18743 10.076 9.18743 9.4688C9.18743 8.49721 9.44139 7.76851 9.94932 7.28272C10.4722 6.78174 11.2042 6.53125 12.1454 6.53125C12.7579 6.53125 13.2882 6.59197 13.7364 6.71342C14.1845 6.81969 14.573 6.9715 14.9016 7.16886L14.4759 8.53516C14.192 8.38335 13.8634 8.2619 13.4899 8.17081C13.1164 8.06454 12.7355 8.01141 12.347 8.01141C11.8092 8.01141 11.4134 8.12527 11.1594 8.35298C10.9204 8.5807 10.8008 8.93746 10.8008 9.42325C10.8008 9.80278 10.9054 10.1292 11.1146 10.4024C11.3237 10.6605 11.5851 10.9034 11.8989 11.1311C12.2275 11.3437 12.5786 11.5638 12.9521 11.7915C13.3256 12.0192 13.6691 12.2925 13.9829 12.6113C14.3115 12.9149 14.5804 13.2868 14.7896 13.7271C14.9987 14.1522 15.1033 14.6911 15.1033 15.3439C15.1033 15.769 15.0361 16.1713 14.9016 16.5508C14.7672 16.9303 14.558 17.2643 14.2742 17.5527C14.0053 17.826 13.6617 18.0461 13.2434 18.2131C12.84 18.3801 12.362 18.4636 11.8092 18.4636C11.1519 18.4636 10.5842 18.3953 10.1062 18.2587C9.62813 18.1372 9.22478 17.9702 8.89612 17.7577L9.38911 16.3231Z" fill="white"/>
+          <ellipse id="Ellipse 6" cx="4.76064" cy="12.3826" rx="1.29909" ry="1.32014" fill="white"/>
+          <ellipse id="Ellipse 7" cx="19.2392" cy="12.3826" rx="1.29909" ry="1.32014" fill="white"/>
+          </g>
+        </svg>
+        <span style="font-family: Poppins; font-size: 24px; font-style: normal; font-weight: 800; line-height: 26.825px; color: #FFF; margin-left: 8px;">SanR</span>
+        <span style="font-family: Poppins; font-size: 16px; font-style: normal; font-weight: 800; line-height: 26.825px; color: #FFF; margin-left: 24px;">Crypto price prediction market</span>
+      </div>
+      <div style="display: flex; justify-content: center; gap: 70px; margin-top: 24px;">
+        <div style="height: 530px; width: 340px; display: flex; flex-flow: column">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <img src=${avatar} style="height: 50px; width: 50px; border-radius: 50%"/>
+            <div style="width: 100%; display: flex; flex-flow: column; gap: 2px">
+              <div style="font-family: Poppins; font-size: 24px; font-style: normal; font-weight: 600; line-height: normal; color: ${main};">${username}</div>
+              <div style="font-family: Poppins; font-size: 18px; font-style: normal; font-weight: 400; line-height: normal; color: #6E778D;">${formatDate(openDate)}${closeDate && ` - ${formatDate(closeDate)}`}</div>
+            </div>
+          </div>
+          <div style="margin-top: 24px; font-family: Poppins; font-size: 18px; font-style: normal; font-weight: 400; line-height: normal; color: #6E778D;">Signal details</div>
+          <div style="margin-top: 16px; display: flex; align-items: center; gap: 16px">
+            <img src=${symbolIcon} style="height: 50px; width: 50px; border-radius: 50%"/>
+            <div style="font-family: Poppins; font-size: 24px; font-style: normal; font-weight: 700; line-height: normal; color: ${main};">${symbol}</div>
+            <div style="display: flex; width: 105px; height: 28px; padding: 2px 6px; justify-content: center; align-items: center; gap: 6px; border-radius: 3px; border: 2px solid var(--Light-success-normal, ${success});">
+              <span style="font-family: Poppins; font-size: 14px; font-style: normal; font-weight: 600; line-height: 20px; color: ${success}">SanRise</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M17.4693 6.53069C17.8436 6.90494 17.8436 7.51172 17.4693 7.88598L7.88598 17.4693C7.51172 17.8436 6.90494 17.8436 6.53069 17.4693C6.15644 17.0951 6.15644 16.4883 6.53069 16.114L16.114 6.53069C16.4883 6.15644 17.0951 6.15644 17.4693 6.53069Z" fill="${success}"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M6.25 7.20833C6.25 6.67906 6.67906 6.25 7.20833 6.25H16.7917C17.3209 6.25 17.75 6.67906 17.75 7.20833V16.7917C17.75 17.3209 17.3209 17.75 16.7917 17.75C16.2624 17.75 15.8333 17.3209 15.8333 16.7917V8.16667H7.20833C6.67906 8.16667 6.25 7.73761 6.25 7.20833Z" fill="${success}"/>
+              </svg>
+            </div>
+          </div>
+          <div style="margin-top: 16px; font-family: Poppins; font-size: 18px; font-style: normal; font-weight: 400; line-height: normal; color: #6E778D;">Performance</div>
+          <div style="margin-top: 2px; font-family: Poppins; font-size: 28px; font-style: normal; font-weight: 600; line-height: normal; color: ${performance > 0 ? success : performance < 0 ? error : '#6E778D'};">${mathRound2(performance * 100)}%</div>
+          <div style="margin-top: 16px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; flex-flow: column; gap: 2px;">
+              <div style="font-family: Poppins; font-size: 18px; font-style: normal; font-weight: 400; line-height: normal; color: #6E778D;">Opening price</div>
+              <div style="font-family: Poppins; font-size: 24px; font-style: normal; font-weight: 600; line-height: normal; color: ${main};">${roundTokenValue(openPrice)}</div>
+            </div>
+            <div style="display: ${closePrice ? 'block' : 'none'}; width: 1px; height: 46px; background: #E3E5EE;"></div>
+            <div style="display: ${closePrice ? 'flex' : 'none'}; flex-flow: column; gap: 2px;">
+              <div style="font-family: Poppins; font-size: 18px; font-style: normal; font-weight: 400; line-height: normal; color: #6E778D;">Closing price</div>
+              <div style="font-family: Poppins; font-size: 24px; font-style: normal; font-weight: 600; line-height: normal; color: ${main};">${roundTokenValue(closePrice)}</div>
+            </div>
+          </div>
+          <div style="margin-top: 16px; font-family: Poppins; font-size: 18px; font-style: normal; font-weight: 400; line-height: normal; color: #6E778D;">Leverage performance</div>
+          <div style="margin-top: 2px; font-family: Poppins; font-size: 28px; font-style: normal; font-weight: 600; line-height: normal; color: ${performance > 0 ? success : performance < 0 ? error : '#6E778D'};">${mathRound2(performance * 100) * leverage}% (${leverage}x)</div>
+          <div style="margin-top: 16px; font-family: Poppins; font-size: 18px; font-style: normal; font-weight: 400; line-height: normal; color: #6E778D;">Status</div>
+          <div style="margin-top: 2px; font-family: Poppins; font-size: 28px; font-style: normal; font-weight: 600; line-height: normal; color: ${main};">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="8" fill="${statusText.startsWith('Open') ? success : error}"/>
+            </svg>
+            ${statusText}
+          </div>
+        </div>
+        <div style="height: 500px; width: 700px; font-family: Poppins;" id="firstContainer"></div>
+      </div>
+</body>
+<script>
+console.log(12345);
+  const chart = LightweightCharts.createChart(document.getElementById('firstContainer'),   {
+      width: 700,
+      height: 500,
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+        drawTicks: false,
+        rightOffset: 4,
+      },
+      handleScale: false,
+      grid: {
+        vertLines: {
+          style: 3,
+        },
+        horzLines: {
+          style: 3,
+        },
+      },
+    }
+  );
+  const minPriceLog10 = ${Math.log10(Math.min(...prices.map(p => p.value)))};
+  const precision = minPriceLog10 > 0 ? 2 : -Math.ceil(minPriceLog10) + 3;
+  const minMove = 1 / 10 ** precision;
+
+  const [[position1, shape1, text1], [position2, shape2, text2]] = ${direction === 'up'}
+    ? [['belowBar', 'arrowUp', 'San.Rise'], ['aboveBar', 'arrowDown', 'Closed']]
+    : [['aboveBar', 'arrowDown', 'San.Set'], ['belowBar', 'arrowUp', 'Closed']]
+  ;
+
+        const seriesCommonOptions = {
+          lastValueVisible: false,
+          priceLineVisible: false,
+          lineWidth: 1.5,
+          priceFormat: {
+            precision,
+            minMove,
+          },
+        };
+
+        const series1 = chart.addLineSeries({
+          ...seriesCommonOptions,
+          color: '${secondary}',
+        });
+        series1.setData(${JSON.stringify(prices.slice(0, signalOpenDateIndex + 1))});
+        if (${direction !== null}) {
+          series1.setMarkers([{time: ${prices[signalOpenDateIndex - 1].time}, position: position1, color: '${main}', shape: shape1, size: 2, text: text1}]);
+        }
+        else {
+          // series1.setMarkers([{time: JSON.stringify(prices[signalOpenDateIndex].datetime), position: 'inBar', color: getHashColorFromCssVariable(privateMain), shape: 'circle', size: 1}]);
+        }
+
+        // if (takeProfitPrice !== null) {
+        //   series1.createPriceLine({
+        //     price: Number(takeProfitPrice),
+        //     color: getHashColorFromCssVariable(successNormal),
+        //     lineStyle: 1,
+        //   });
+        // }
+
+        // if (stopLossPrice !== null) {
+        //   series1.createPriceLine({
+        //     price: Number(stopLossPrice),
+        //     color: getHashColorFromCssVariable(errorNormal),
+        //     lineStyle: 1,
+        //   });
+        // }
+
+
+        if (${signalCloseDateIndex === null}) {
+          const series2 = chart.addLineSeries({
+            ...seriesCommonOptions,
+            color: getHashColorFromCssVariable(getPerformanceColor(forecast)),
+          });
+          series2.setData(prices.slice(signalOpenDateIndex));
+        }
+        else {
+          const series3 = chart.addLineSeries({
+            ...seriesCommonOptions,
+            color: '${secondary}',
+          });
+          series3.setData(${JSON.stringify(prices.slice(signalCloseDateIndex))});
+          const series2 = chart.addLineSeries({
+            ...seriesCommonOptions,
+            color: '${success}',
+          });
+          series2.setData(${JSON.stringify(prices.slice(signalOpenDateIndex, signalCloseDateIndex + 1))});
+          series2.setMarkers([{time: ${prices[signalCloseDateIndex - 1].time}, position: position2, color: '${main}', shape: shape2, size: 2, text: text2}]);
+        }
+  </script>
+</html>
+  `
+};
+
+
+async function getChart(imagePath, {username, avatar, openDate, closeDate, symbol, openPrice, closePrice, performance, leverage, statusText, prices, direction, signalOpenDateIndex, signalCloseDateIndex}) {
+  let browser;
+  try {
+    browser = await puppeteer.launch(
+      {
+        headless: true,
+        args: ['--enable-logging', '--v=1'],
+      }
+    );
+    const page = await browser.newPage();
+    page
+    .on('console', message =>
+      console.log(`${message.type().substr(0, 3).toUpperCase()} ${message.text()}`))
+    .on('pageerror', ({ message }) => console.log(message));
+    await page.setViewport({
+      width: 1200,
+      height: 630,
+      deviceScaleFactor: 2,
+    });
+    const html = getHtml({
+      username, 
+      avatar, 
+      openDate, 
+      closeDate,
+      symbol,
+      openPrice,
+      closePrice,
+      performance,
+      leverage,
+      statusText,
+      prices,
+      direction,
+      signalOpenDateIndex,
+      signalCloseDateIndex,
+    });
+    await page.setContent(html);
+    await page.screenshot({path: imagePath});
+    return await browser.close();
+  } catch (e) {
+    console.error(e);
+  } finally {
+    browser?.close();
+  }
+};
+
+
+function mathRound2(number) {
+  try {
+    return String(Math.round(number * 100) / 100).replace('.', ',');
+  }
+  catch {
+    return number;
+  }
 }
